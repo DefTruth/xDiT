@@ -20,6 +20,7 @@ from diffusers.models.embeddings import apply_rotary_emb
 from xfuser.core.distributed import (
     get_sequence_parallel_world_size,
     get_sequence_parallel_rank,
+    get_ring_parallel_world_size,
     get_sp_group,
 )
 from xfuser.core.fast_attention import (
@@ -39,6 +40,7 @@ logger = init_logger(__name__)
 env_info = PACKAGES_CHECKER.get_packages_info()
 HAS_LONG_CTX_ATTN = env_info["has_long_ctx_attn"]
 HAS_FLASH_ATTN = env_info["has_flash_attn"]
+FORCE_SDPA_ATTN = env_info["force_sdpa_attn"]
 
 
 def is_v100():
@@ -972,7 +974,8 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
             and use_long_ctx_attn_kvcache
             and get_sequence_parallel_world_size() > 1
         )
-        if HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1:
+        if (HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1 
+            and get_ring_parallel_world_size() > 1):
             from xfuser.core.long_ctx_attention import (
                 xFuserLongContextAttention,
                 xFuserUlyssesAttention,
@@ -989,6 +992,9 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
                 )
         else:
             self.hybrid_seq_parallel_attn = None
+            if FORCE_SDPA_ATTN:
+                logger.warning(f"FORCE_SDPA_ATTN is set as {FORCE_SDPA_ATTN} "
+                               f"for {self.__class__.__name__}")
 
     def __call__(
         self,
@@ -1056,7 +1062,8 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
         #! ---------------------------------------- KV CACHE ----------------------------------------
 
         #! ---------------------------------------- ATTENTION ----------------------------------------
-        if HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1:
+        if (HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1 
+            and get_ring_parallel_world_size() > 1):
             if get_runtime_state().split_text_embed_in_sp:
                 encoder_query = None
                 encoder_key = None
@@ -1094,7 +1101,7 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
                 batch_size, -1, attn.heads * head_dim
             )
         else:
-            if HAS_FLASH_ATTN:
+            if HAS_FLASH_ATTN and not FORCE_SDPA_ATTN:
                 from flash_attn import flash_attn_func
 
                 query = query.transpose(1, 2)
