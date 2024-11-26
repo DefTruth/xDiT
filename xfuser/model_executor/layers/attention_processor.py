@@ -974,8 +974,7 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
             and use_long_ctx_attn_kvcache
             and get_sequence_parallel_world_size() > 1
         )
-        if (HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1 
-            and get_ring_parallel_world_size() > 1):
+        if HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1:
             from xfuser.core.long_ctx_attention import (
                 xFuserLongContextAttention,
                 xFuserUlyssesAttention,
@@ -992,9 +991,6 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
                 )
         else:
             self.hybrid_seq_parallel_attn = None
-            if FORCE_SDPA_ATTN:
-                logger.warning(f"FORCE_SDPA_ATTN is set as {FORCE_SDPA_ATTN} "
-                               f"for {self.__class__.__name__}")
 
     def __call__(
         self,
@@ -1062,8 +1058,7 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
         #! ---------------------------------------- KV CACHE ----------------------------------------
 
         #! ---------------------------------------- ATTENTION ----------------------------------------
-        if (HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1 
-            and get_ring_parallel_world_size() > 1):
+        if HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1:
             if get_runtime_state().split_text_embed_in_sp:
                 encoder_query = None
                 encoder_key = None
@@ -1101,7 +1096,7 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
                 batch_size, -1, attn.heads * head_dim
             )
         else:
-            if HAS_FLASH_ATTN and not FORCE_SDPA_ATTN:
+            if HAS_FLASH_ATTN:
                 from flash_attn import flash_attn_func
 
                 query = query.transpose(1, 2)
