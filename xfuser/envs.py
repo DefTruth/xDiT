@@ -63,6 +63,7 @@ class PackagesEnvChecker:
             "has_flash_attn": self.check_flash_attn(),
             "has_long_ctx_attn": self.check_long_ctx_attn(),
             "diffusers_version": self.check_diffusers_version(),
+            "force_sdpa_attn": self.check_force_sdpa_attn(),
         }
 
     def check_flash_attn(self):
@@ -112,6 +113,9 @@ class PackagesEnvChecker:
                 f"please upgrade to version > 0.30.0"
             )
         return version.parse(version.parse(diffusers.__version__).base_version)
+    
+    def check_force_sdpa_attn(self):
+        return bool(int(os.getenv("XDIT_FORCE_USE_SDPA", 0)))
 
     def get_packages_info(self):
         return self.packages_info
